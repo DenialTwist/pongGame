@@ -2,6 +2,10 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"time"
+
+	"github.com/eiannone/keyboard"
 )
 
 type Ball struct {
@@ -51,7 +55,9 @@ func drawField(ball *Ball, leftPaddle *Paddle, rightPaddle *Paddle, score *Score
 			}
 		}
 		fmt.Println()
+
 	}
+	fmt.Println("\t\t  A/Z for LEFT PLAYER | K/M for RIGHT PLAYER")
 }
 func updateBall(ball *Ball, leftPaddle *Paddle, rightPaddle *Paddle, score *Score) {
 	if ball.posX > 23 {
@@ -104,6 +110,8 @@ func handleInput(ch rune, leftPaddle *Paddle, rightPaddle *Paddle) {
 		if rightPaddle.posX < 23 {
 			rightPaddle.posX++
 		}
+	case 'q':
+		return
 	default:
 		//
 	}
@@ -116,16 +124,41 @@ func main() {
 	clearScreen()
 	drawField(ball, leftPaddle, rightPaddle, score)
 
+	err := keyboard.Open()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer keyboard.Close()
+
+	keyChan := make(chan rune)
+
+	go func() {
+		for {
+			ch, _, err := keyboard.GetKey()
+			if err != nil {
+				return
+			}
+			keyChan <- ch
+		}
+	}()
+
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
 	for score.leftPlayer < 5 && score.rightPlayer < 5 {
-		var ch rune
-		fmt.Scanf("%c", &ch)
-		clearScreen()
-		handleInput(ch, leftPaddle, rightPaddle)
+		select {
+		case ch := <-keyChan:
+			if ch == 'q' {
+				return
+			}
+			handleInput(ch, leftPaddle, rightPaddle)
 
-		updateBall(ball, leftPaddle, rightPaddle, score)
-		drawField(ball, leftPaddle, rightPaddle, score)
-
+		case <-ticker.C:
+			clearScreen()
+			updateBall(ball, leftPaddle, rightPaddle, score)
+			drawField(ball, leftPaddle, rightPaddle, score)
+		}
 	}
 
-	fmt.Printf("GAME IS OVER! FINAL SCORE %d:%d", score.leftPlayer, score.rightPlayer)
+	fmt.Printf("GAME IS OVER! FINAL SCORE %d:%d\n", score.leftPlayer, score.rightPlayer)
 }
